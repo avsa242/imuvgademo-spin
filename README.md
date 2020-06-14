@@ -18,6 +18,7 @@ P2/SPIN2:
 
 Supported IMUs:
 * MPU9250 (I2C)
+* LSM9DS1 (3w SPI)
 
 ## Compiler Compatibility
 
@@ -45,7 +46,7 @@ Supported IMUs:
 - [ ] Add support for logging of data to flash/SD
 
 Add support for other IMUs and motion sensors:
-- [ ] LSM9DS1
+- [x] LSM9DS1
 - [ ] LIS3DH
 - [ ] ADXL345
 - [ ] L3G4200D

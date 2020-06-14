@@ -5,13 +5,15 @@
     Description: Visual representation of IMU data output
     Copyright (c) 2020
     Started Jun 12, 2020
-    Updated Jun 13, 2020
+    Updated Jun 14, 2020
     See end of file for terms of use.
     --------------------------------------------
 }
 ' Uncomment one of the following to choose which interface the MPU9250 is connected to
 '#define MPU9250_I2C    NOT IMPLEMENTED YET
 '#define MPU9250_SPI    NOT IMPLEMENTED YET
+#define LSM9DS1_SPI
+
 CON
 
     _xtlfreq        = cfg._xtlfreq
@@ -35,9 +37,18 @@ CON
 
     VGA_BASEPIN     = 0                                         ' 0, 8, 16, 24, 32, 40, 48
 
+' MPU9250
     SCL_PIN         = 32                                        ' SPI, I2C
     SDA_PIN         = 33                                        ' SPI, I2C
     I2C_HZ          = 400_000                                   ' I2C
+
+' LSM9DS1
+    CS_AG_PIN       = 34
+    CS_M_PIN        = 35
+    SDIO_PIN        = 33
+    INT_AG_PIN      = 24
+    INT_M_PIN       = 25
+    SCK_FREQ        = 5_000_000
 ' --
 
 OBJ
@@ -47,7 +58,11 @@ OBJ
     time    : "time"
     io      : "io"
     int     : "string.integer"
+#ifdef MPU9250_I2C
     imu     : "sensor.imu.9dof.mpu9250.i2c"
+#elseifdef LSM9DS1_SPI
+    imu     : "sensor.imu.9dof.lsm9ds1.3wspi"
+#endif
     vga     : "display.vga.bitmap-8bpp"
     fnt     : "font.5x8"
 
@@ -126,14 +141,14 @@ PUB UpdateSettings()
 
     imu.accelscale(2)                                       ' 2, 4, 8, 16 (g's)
     imu.accelaxisenabled(%111)                              ' 0 or 1 for each bit (%xyz)
+    imu.accelbias(0, 0, 0, 1)
 
     imu.gyroscale(_gscl)                                    ' 250, 500, 1000, 2000
     imu.gyroaxisenabled(%111)                               ' 0 or 1 for each bit (%xyz)
-    imu.gyrooffset(0, 0, 0, 1)                              ' x, y, z: 0..65535, rw = 1 (write)
-
+    imu.gyrobias(0, 0, 0, 1)                              ' x, y, z: 0..65535, rw = 1 (write)
     imu.magscale(16)                                        ' 14, 16 (bits)
 
-    imu.intmask(%00000000)
+'    imu.intmask(%00000000)
 
     _gcx := REDMIN+32                                       ' Gyro display color X-axis
     _gcy := GREENMIN+32                                     ' Gyro display color Y-axis
@@ -167,16 +182,24 @@ PUB Setup()
     repeat until ser.startrxtx (SER_RX, SER_TX, 0, SER_BAUD)
     time.msleep(30)
     ser.clear()
-    ser.str(string("Serial terminal started", ser.CR, ser.LF))
+    ser.printf("Serial terminal started\n")
 
+#ifdef MPU9250_I2C
     if imu.start(SCL_PIN, SDA_PIN, I2C_HZ)
         imu.defaults()
-        ser.str(string("MPU9250 driver started (I2C)", ser.CR, ser.LF))
+        ser.printf("MPU9250 driver started (I2C)\n")
     else
-        ser.str(string("MPU9250 driver failed to start - halting", ser.CR, ser.LF))
+        ser.printf("MPU9250 driver failed to start - halting\n")
         imu.stop()
         time.msleep(5)
         flashled(LED, 500)
+#elseifdef LSM9DS1_SPI
+    if imu.Start (SCL_PIN, SDIO_PIN, CS_AG_PIN, CS_M_PIN, INT_AG_PIN, INT_M_PIN, SCK_FREQ)
+        ser.printf("LSM9DS1 driver started (SPI)\n")
+    else
+        ser.printf("LSM9DS1 driver failed to start- halting\n")
+        FlashLED(LED, 500)
+#endif
 
     setuppalette()
     if vga.start(VGA_BASEPIN, @_framebuffer, @_palette, WIDTH, HEIGHT)
