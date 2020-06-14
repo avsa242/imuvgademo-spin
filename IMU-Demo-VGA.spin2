@@ -89,7 +89,7 @@ PUB Main()
 
     flashled(LED, 100)
 
-PUB AccelRay | ax, ay, az, sx, sy, sz
+PUB AccelRay() | ax, ay, az, sx, sy, sz
 
     imu.acceldata(@ax, @ay, @az)
     sx := ax / 256
@@ -105,7 +105,7 @@ PUB AccelRay | ax, ay, az, sx, sy, sz
     vga.circle(CENTERX+sy, CENTERY, 5, GREENMAX)
     vga.circle(CENTERX+sz, CENTERY+sz, 5, BLUEMAX)
 
-PUB GyroRay | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, yr, zr
+PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, yr, zr
 
     vga.position(0, 0)
     vga.printf("Gyroscope data output")
@@ -160,7 +160,7 @@ PRI DrawColorScale(x, y, h) | c
         vga.line(x+c, y, x+c, y+h, c)
 
 PRI Cos(angle): tmp
-
+' Return the cosine of angle
     asm
         shl     angle, #20
         qrotate ##100000, angle
