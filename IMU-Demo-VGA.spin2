@@ -5,14 +5,14 @@
     Description: Visual representation of IMU data output
     Copyright (c) 2020
     Started Jun 12, 2020
-    Updated Jun 14, 2020
+    Updated Jun 22, 2020
     See end of file for terms of use.
     --------------------------------------------
 }
-' Uncomment one of the following to choose which interface the MPU9250 is connected to
-'#define MPU9250_I2C    NOT IMPLEMENTED YET
+' Uncomment one of the following to choose which IMU the demo runs with
+#define MPU9250_I2C
 '#define MPU9250_SPI    NOT IMPLEMENTED YET
-#define LSM9DS1_SPI
+'#define LSM9DS1_SPI
 
 CON
 
@@ -70,20 +70,23 @@ VAR
 
     long _palette[256]
     long _gdiv
-    word _gscl
+    long _imu_name[3]
+    word _ascl, _gscl
     byte _framebuffer[BUFFSZ]
     byte _offscreen[BUFFSZ]
     byte _gcx, _gcy, _gcz
 
 PUB Main()
 
+    vga.SetTimings(10, 33, 16, 96, 48, 640)
     setup()
     updateSettings()
 
+    vga.fgcolor(WHITE)
     repeat
         vga.waitvsync()
-        gyroray()
-'        AccelRay()
+'        GyroRay()
+        AccelRay()
         vga.update()
         vga.clear()
 
@@ -91,13 +94,30 @@ PUB Main()
 
 PUB AccelRay() | ax, ay, az, sx, sy, sz
 
+    vga.position(0, 1)
+    vga.printf("Raw accelerometer data output (%s)", _imu_name)
     imu.acceldata(@ax, @ay, @az)
     sx := ax / 256
     sy := ay / 256
     sz := az / 256
+
+    vga.position(0, 2)
+    vga.printf("Scale: %dg\n", _ascl)
+    vga.fgcolor(REDMAX)
+    vga.printf("X: ")
     vga.fgcolor(WHITE)
-    vga.position(5, 5)
-    vga.printf("ax: %d  ay: %d  az: %d", ax, ay, az)
+    vga.dec(ax)
+
+    vga.fgcolor(GREENMAX)
+    vga.printf("\nY: ")
+    vga.fgcolor(WHITE)
+    vga.dec(ay)
+
+    vga.fgcolor(BLUEMAX)
+    vga.printf("\nZ: ")
+    vga.fgcolor(WHITE)
+    vga.dec(az)
+
     vga.line(CENTERX, CENTERY, CENTERX, CENTERY+sx, REDMAX)
     vga.line(CENTERX, CENTERY, CENTERX+sy, CENTERY, GREENMAX)
     vga.line(CENTERX, CENTERY, CENTERX+sz, CENTERY+sz, BLUEMAX)
@@ -107,8 +127,9 @@ PUB AccelRay() | ax, ay, az, sx, sy, sz
 
 PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, yr, zr
 
-    vga.position(0, 0)
-    vga.printf("Gyroscope data output")
+    vga.fgcolor(WHITE)
+    vga.position(0, 1)
+    vga.printf("Raw gyroscope data output (%s)", _imu_name)
     xdiv := HEIGHT * 4
     ydiv := HEIGHT * 4
     zdiv := HEIGHT * 4
@@ -126,9 +147,22 @@ PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, 
     zsx := CENTERX + cos(gz) / zdiv
     zsy := CENTERY + sin(gz) / zdiv
 
+    vga.position(0, 2)
+    vga.printf("Scale: %ddps\n", _gscl)
+    vga.fgcolor(REDMAX)
+    vga.printf("X: ")
     vga.fgcolor(WHITE)
-    vga.position(5, 5)
-    vga.printf("gscl: %ddps  gx: %d  gy: %d  gz: %d", _gscl, gx, gy, gz)
+    vga.dec(gx)
+
+    vga.fgcolor(GREENMAX)
+    vga.printf("\nY: ")
+    vga.fgcolor(WHITE)
+    vga.dec(gy)
+
+    vga.fgcolor(BLUEMAX)
+    vga.printf("\nZ: ")
+    vga.fgcolor(WHITE)
+    vga.dec(gz)
 
     vga.line(CENTERX, CENTERY, xsx, xsy, REDMAX)            ' Lines radiating from screen center to an
     vga.line(CENTERX, CENTERY, ysx, ysy, GREENMAX)          '   elliptical path around the center
@@ -139,25 +173,19 @@ PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, 
 
 PUB UpdateSettings()
 
-    imu.accelscale(2)                                       ' 2, 4, 8, 16 (g's)
+    imu.accelscale(_ascl)                                   ' 2, 4, 8, 16 (g's)
     imu.accelaxisenabled(%111)                              ' 0 or 1 for each bit (%xyz)
-    imu.accelbias(0, 0, 0, 1)
-
+#ifdef LSM9DS1
+    imu.accelbias(0, 0, 0, 1)                               ' XXX Not yet functional for MPU9250
+#endif
     imu.gyroscale(_gscl)                                    ' 250, 500, 1000, 2000
     imu.gyroaxisenabled(%111)                               ' 0 or 1 for each bit (%xyz)
-    imu.gyrobias(0, 0, 0, 1)                              ' x, y, z: 0..65535, rw = 1 (write)
+    imu.gyrobias(0, 0, 0, 1)                                ' x, y, z: 0..65535, rw = 1 (write)
     imu.magscale(16)                                        ' 14, 16 (bits)
-
-'    imu.intmask(%00000000)
 
     _gcx := REDMIN+32                                       ' Gyro display color X-axis
     _gcy := GREENMIN+32                                     ' Gyro display color Y-axis
     _gcz := BLUEMIN+32                                      ' Gyro display color Z-axis
-
-PRI DrawColorScale(x, y, h) | c
-
-    repeat c from 0 to 255
-        vga.line(x+c, y, x+c, y+h, c)
 
 PRI Cos(angle): tmp
 ' Return the cosine of angle
@@ -185,6 +213,7 @@ PUB Setup()
     ser.printf("Serial terminal started\n")
 
 #ifdef MPU9250_I2C
+    _imu_name := string("MPU9250")
     if imu.start(SCL_PIN, SDA_PIN, I2C_HZ)
         imu.defaults()
         ser.printf("MPU9250 driver started (I2C)\n")
@@ -194,6 +223,7 @@ PUB Setup()
         time.msleep(5)
         flashled(LED, 500)
 #elseifdef LSM9DS1_SPI
+    _imu_name := string("LSM9DS1")
     if imu.Start (SCL_PIN, SDIO_PIN, CS_AG_PIN, CS_M_PIN, INT_AG_PIN, INT_M_PIN, SCK_FREQ)
         ser.printf("LSM9DS1 driver started (SPI)\n")
     else
@@ -216,6 +246,7 @@ PUB Setup()
         ser.printf("VGA 8bpp driver failed to start\n")
         repeat
 
+    _ascl := 2
     _gscl := 2000
 
 PRI SetupPalette() | i, r, g, b, c

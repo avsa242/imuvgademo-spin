@@ -5,6 +5,12 @@ This is a P2X8C4M64P/Propeller 2 demo application that displays live data from a
 
 **IMPORTANT**: This software is meant to be used with the ~~[spin-standard-library](https://github.com/avsa242/spin-standard-library) (P8X32A) or~~ [p2-spin-standard-library](https://github.com/avsa242/p2-spin-standard-library) (P2X8C4M64P). Please install the applicable library first before attempting to use this code, otherwise you will be missing several files required to build the project.
 
+## Videos
+
+* [LSM9DS1 Gyro](https://youtu.be/nFppKTgk1ds)
+* [MPU9250 Gyro](https://youtu.be/OZ-gQdGFW-k)
+* [MPU9250 Accel](https://youtu.be/X_TVRA0FTkQ)
+
 ## Salient Features
 
 * ``AccelRay()``: Displays 3DoF accelerometer data as rays radiating from the screen center outwards in proportion with acceleration experienced by each axis (currently static orientation)
@@ -31,7 +37,6 @@ Supported IMUs:
 ## Limitations
 
 * Very early in development - may malfunction, or outright fail to build
-* Supports only one IMU
 * Supports only the P2
 * Plots only using raw data
 
@@ -41,7 +46,7 @@ Supported IMUs:
 - [ ] Add routines for plotting magnetometer data
 - [ ] Add ability to change settings at runtime
 - [ ] Add ability to calibrate IMU
-- [ ] Add screenshots and example video footage
+- [x] Add screenshots and example video footage
 - [ ] Port to P1/SPIN1
 - [ ] Add support for logging of data to flash/SD
 
