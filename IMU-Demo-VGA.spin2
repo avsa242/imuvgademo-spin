@@ -37,18 +37,19 @@ CON
 
     VGA_BASEPIN     = 0                                         ' 0, 8, 16, 24, 32, 40, 48
 
+#ifdef MPU9250_I2C
 ' MPU9250
     SCL_PIN         = 26                                        ' SPI, I2C
     SDA_PIN         = 27                                        ' SPI, I2C
     I2C_HZ          = 400_000                                   ' I2C
-
+#elseifdef LSM9DS1_SPI
 ' LSM9DS1
-    CS_AG_PIN       = 34
-    CS_M_PIN        = 35
-    SDIO_PIN        = 33
-    INT_AG_PIN      = 24
-    INT_M_PIN       = 25
+    SCL_PIN         = 26
+    SDIO_PIN        = 27
+    CS_AG_PIN       = 28
+    CS_M_PIN        = 29
     SCK_FREQ        = 5_000_000
+#endif
 ' --
 
 OBJ
@@ -172,7 +173,13 @@ PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, 
     vga.circle(ysx, ysy, yr, GREENMAX)
     vga.circle(zsx, zsy, 5, BLUEMAX)
 
-CON MAGPLOTSCALE = 5
+CON
+
+#ifdef LSM9DS1_SPI
+    MAGPLOTSCALE = 100                                      ' XXX - arbitrary
+#elseifdef MPU9250_I2C
+    MAGPLOTSCALE = 5                                        '
+#endif
 
 PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep
 
@@ -189,7 +196,7 @@ PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep
     imu.magdata(@mx, @my, @mz)
 
     mx /= MAGPLOTSCALE                                      ' Scale to fit the display
-    my /= MAGPLOTSCALE                                      '   XXX - arbitrary
+    my /= MAGPLOTSCALE
     mz /= MAGPLOTSCALE
 
     repeat x from sx to ex step gradstep                    ' Draw dotted graduations centered on screen
@@ -207,7 +214,11 @@ PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep
     vga.plot(sx #> (CENTERX + my) <# ex, sy #> (CENTERY + mz) <# ey, GREENMAX)          ' Y/Z
 
     vga.position(0, 2)                                      ' Raw magnetometer data
-    vga.printf("Scale: %dbits\n", _mscl)
+#ifdef LSM9DS1_SPI
+    vga.printf("Scale: %dGs\n", _mscl)
+#elseifdef MPU9250_I2C
+    vga.printf("Scale: %dbits\n", _mscl)    ' XXX rewrite MPU9250 MagScale() to scaled units
+#endif
     vga.printf("X: %s\n", int.decpadded(mx, 4))
     vga.printf("Y: %s\n", int.decpadded(my, 4))
     vga.printf("Z: %s\n", int.decpadded(mz, 4))
@@ -234,16 +245,18 @@ PRI UpdateSettings()
 
     imu.accelscale(_ascl)                                   ' 2, 4, 8, 16 (g's)
     imu.accelaxisenabled(%111)                              ' 0 or 1 for each bit (%xyz)
-#ifdef MPU9250_I2C
     imu.accellowpassfilter(188)                             ' 5, 10, 20, 42, 98, 188
-#endif
+
     imu.gyroscale(_gscl)                                    ' 250, 500, 1000, 2000
     imu.gyroaxisenabled(%111)                               ' 0 or 1 for each bit (%xyz)
-#ifdef MPU9250_I2C
     imu.gyrolowpassfilter(5)                                ' 5, 10, 20, 42, 98, 188
-#endif
 
     imu.magscale(_mscl)
+#ifdef LSM9DS1_SPI
+    imu.magdatarate(80_000)
+#elseifdef MPU9250_I2C
+    imu.magdatarate(100)
+#endif
 
 PRI Cos(angle): tmp
 ' Return the cosine of angle
