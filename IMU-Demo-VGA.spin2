@@ -174,8 +174,14 @@ PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, 
 
 CON MAGPLOTSCALE = 5
 
-PUB MagPlot() | mx, my, mz
+PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep
 
+    sx := CENTERX-80                                        ' Coords for graph "window"
+    ex := CENTERX+80
+    sy := CENTERY-80
+    ey := CENTERY+80
+    grads := 8
+    gradstep := 160/grads
     vga.fgcolor(WHITE)
     vga.position(0, 1)
     vga.printf("Magnetometer (raw, %s)", _imu_name)
@@ -186,17 +192,27 @@ PUB MagPlot() | mx, my, mz
     my /= MAGPLOTSCALE                                      '   XXX - arbitrary
     mz /= MAGPLOTSCALE
 
-    vga.plot(CENTERX + mx, CENTERY + my, BLUEMAX)
-    vga.plot(CENTERX + mx, CENTERY + mz, REDMAX)
-    vga.plot(CENTERX + my, CENTERY + mz, GREENMAX)
+    repeat x from sx to ex step gradstep                    ' Draw dotted graduations centered on screen
+        repeat y from sy to ey step 2
+            vga.plot(x, y, GREY25-5)
 
-    vga.position(0, 2)
+    repeat y from sy to ey step gradstep
+        repeat x from sx to ex step 2
+            vga.plot(x, y, GREY25-5)
+
+    vga.box(sx, sy, ex, ey, GREY25)                         '   then a box surrounding it
+
+    vga.plot(sx #> (CENTERX + mx) <# ex, sy #> (CENTERY + my) <# ey, BLUEMAX)           ' X/Y
+    vga.plot(sx #> (CENTERX + mx) <# ex, sy #> (CENTERY + mz) <# ey, REDMAX)            ' X/Z
+    vga.plot(sx #> (CENTERX + my) <# ex, sy #> (CENTERY + mz) <# ey, GREENMAX)          ' Y/Z
+
+    vga.position(0, 2)                                      ' Raw magnetometer data
     vga.printf("Scale: %dbits\n", _mscl)
     vga.printf("X: %s\n", int.decpadded(mx, 4))
     vga.printf("Y: %s\n", int.decpadded(my, 4))
     vga.printf("Z: %s\n", int.decpadded(mz, 4))
 
-    vga.bgcolor(BLUEMAX)
+    vga.bgcolor(BLUEMAX)                                    ' Color legend
     vga.printf("X/Y\n")
 
     vga.bgcolor(REDMAX)
@@ -311,14 +327,10 @@ PRI SetupPalette() | i, r, g, b, c
                 r := 0
                 g := 0
                 b += 4
-            192..253:                                       ' Yellow
+            192..255:                                       ' Grey
                 r += 4
                 g += 4
-                b := 0
-            254..255:                                       ' White
-                r := 255
-                g := 255
-                b := 255
+                b += 4
 
 CON
 
@@ -330,8 +342,10 @@ CON
     GREENMAX    = 127
     BLUEMIN     = 128
     BLUEMAX     = 191
-    YELLOWMIN   = 192
-    YELLOWMAX   = 253
+    GREY0       = 192
+    GREY25      = 192+16
+    GREY50      = 192+32
+    GREY75      = 192+48
     WHITE       = 255
 
 #include "lib.utility.spin2"
