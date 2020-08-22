@@ -5,7 +5,7 @@
     Description: Visual representation of IMU data output
     Copyright (c) 2020
     Started Jun 12, 2020
-    Updated Jun 22, 2020
+    Updated Aug 22, 2020
     See end of file for terms of use.
     --------------------------------------------
 }
@@ -38,8 +38,8 @@ CON
     VGA_BASEPIN     = 0                                         ' 0, 8, 16, 24, 32, 40, 48
 
 ' MPU9250
-    SCL_PIN         = 32                                        ' SPI, I2C
-    SDA_PIN         = 33                                        ' SPI, I2C
+    SCL_PIN         = 26                                        ' SPI, I2C
+    SDA_PIN         = 27                                        ' SPI, I2C
     I2C_HZ          = 400_000                                   ' I2C
 
 ' LSM9DS1
@@ -71,29 +71,29 @@ VAR
     long _palette[256]
     long _gdiv
     long _imu_name[3]
-    word _ascl, _gscl
+    word _ascl, _gscl, _mscl
     byte _framebuffer[BUFFSZ]
     byte _offscreen[BUFFSZ]
-    byte _gcx, _gcy, _gcz
 
 PUB Main()
 
-    vga.SetTimings(10, 33, 16, 96, 48, 640)
+    vga.SetTimings(10, 33, 16, 89, 85, 640)
     setup()
     updateSettings()
 
     vga.fgcolor(WHITE)
     repeat
         vga.waitvsync()
-'        GyroRay()
-        AccelRay()
+'        gyroray()
+'        accelray()
+        magplot()
         vga.update()
-        vga.clear()
 
     flashled(LED, 100)
 
 PUB AccelRay() | ax, ay, az, sx, sy, sz
 
+    vga.clear()
     vga.position(0, 1)
     vga.printf("Raw accelerometer data output (%s)", _imu_name)
     imu.acceldata(@ax, @ay, @az)
@@ -127,6 +127,7 @@ PUB AccelRay() | ax, ay, az, sx, sy, sz
 
 PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, yr, zr
 
+    vga.clear()
     vga.fgcolor(WHITE)
     vga.position(0, 1)
     vga.printf("Raw gyroscope data output (%s)", _imu_name)
@@ -171,21 +172,57 @@ PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, 
     vga.circle(ysx, ysy, yr, GREENMAX)
     vga.circle(zsx, zsy, 5, BLUEMAX)
 
-PUB UpdateSettings()
+CON MAGPLOTSCALE = 5
+
+PUB MagPlot() | mx, my, mz
+
+    vga.fgcolor(WHITE)
+    vga.position(0, 1)
+    vga.printf("Magnetometer (raw, %s)", _imu_name)
+
+    imu.magdata(@mx, @my, @mz)
+
+    mx /= MAGPLOTSCALE                                      ' Scale to fit the display
+    my /= MAGPLOTSCALE                                      '   XXX - arbitrary
+    mz /= MAGPLOTSCALE
+
+    vga.plot(CENTERX + mx, CENTERY + my, BLUEMAX)
+    vga.plot(CENTERX + mx, CENTERY + mz, REDMAX)
+    vga.plot(CENTERX + my, CENTERY + mz, GREENMAX)
+
+    vga.position(0, 2)
+    vga.printf("Scale: %dbits\n", _mscl)
+    vga.printf("X: %s\n", int.decpadded(mx, 4))
+    vga.printf("Y: %s\n", int.decpadded(my, 4))
+    vga.printf("Z: %s\n", int.decpadded(mz, 4))
+
+    vga.bgcolor(BLUEMAX)
+    vga.printf("X/Y\n")
+
+    vga.bgcolor(REDMAX)
+    vga.printf("X/Z\n")
+
+    vga.bgcolor(GREENMAX)
+    vga.fgcolor(BLACK)
+    vga.printf("Y/Z")
+
+    vga.bgcolor(BLACK)
+    vga.fgcolor(WHITE)
+
+PRI Calibrate()
+
+    imu.calibratexlg()
+    imu.calibratemag()
+
+PRI UpdateSettings()
 
     imu.accelscale(_ascl)                                   ' 2, 4, 8, 16 (g's)
     imu.accelaxisenabled(%111)                              ' 0 or 1 for each bit (%xyz)
-#ifdef LSM9DS1
-    imu.accelbias(0, 0, 0, 1)                               ' XXX Not yet functional for MPU9250
-#endif
+
     imu.gyroscale(_gscl)                                    ' 250, 500, 1000, 2000
     imu.gyroaxisenabled(%111)                               ' 0 or 1 for each bit (%xyz)
-    imu.gyrobias(0, 0, 0, 1)                                ' x, y, z: 0..65535, rw = 1 (write)
-    imu.magscale(16)                                        ' 14, 16 (bits)
 
-    _gcx := REDMIN+32                                       ' Gyro display color X-axis
-    _gcy := GREENMIN+32                                     ' Gyro display color Y-axis
-    _gcz := BLUEMIN+32                                      ' Gyro display color Z-axis
+    imu.magscale(_mscl)
 
 PRI Cos(angle): tmp
 ' Return the cosine of angle
@@ -194,7 +231,6 @@ PRI Cos(angle): tmp
         qrotate ##100000, angle
         getqx   tmp
     endasm
-    return
 
 PRI Sin(angle): tmp
 ' Return the sine of angle
@@ -203,7 +239,6 @@ PRI Sin(angle): tmp
         qrotate ##100000, angle
         getqy   tmp
     endasm
-    return
 
 PUB Setup()
 
@@ -237,17 +272,21 @@ PUB Setup()
         vga.drawto(@_offscreen)
         vga.fontaddress(fnt.BaseAddr())
         vga.fontsize(6, 8)
-        vga.clear
+        vga.clear()
         vga.fgcolor(WHITE)
         vga.position(0, 0)
-        vga.printf("Ready.")
-        vga.update
     else
         ser.printf("VGA 8bpp driver failed to start\n")
         repeat
 
     _ascl := 2
     _gscl := 2000
+#ifdef LSM9DS1_SPI
+    _mscl := 4
+#elseifdef MPU9250_I2C
+    _mscl := 16
+#endif
+    calibrate()
 
 PRI SetupPalette() | i, r, g, b, c
 ' Set up palette
@@ -283,6 +322,8 @@ PRI SetupPalette() | i, r, g, b, c
 
 CON
 
+' Named constants for colors
+    BLACK       = 0
     REDMIN      = 0
     REDMAX      = 63
     GREENMIN    = 64

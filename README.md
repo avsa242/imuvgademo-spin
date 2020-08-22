@@ -15,6 +15,7 @@ This is a P2X8C4M64P/Propeller 2 demo application that displays live data from a
 
 * ``AccelRay()``: Displays 3DoF accelerometer data as rays radiating from the screen center outwards in proportion with acceleration experienced by each axis (currently static orientation)
 * ``GyroRay()``: Display 3DoF gyroscope data as above, but in a pseudo-3D fashion. Trig is used to locate the endpoints of the lines following an elliptical path around the center of the screen, with a circle also attached to the endpoint. The circle radius changes with movement to give a slight sense of depth.
+* ``MagPlot()``: Display 3DoF magnetometer data plotted in x, y as three functions: XY, XZ, YZ
 
 ## Requirements
 
@@ -29,7 +30,7 @@ Supported IMUs:
 ## Compiler Compatibility
 
 * ~~P1/SPIN1: OpenSpin (tested with 1.00.81)~~ _(not yet implemented)_
-* P2/SPIN2: FastSpin (tested with 4.1.10-beta)
+* P2/SPIN2: FastSpin (tested with 4.3.1)
 * ~~BST~~ (incompatible - no preprocessor)
 * ~~Propeller Tool~~ (incompatible - no preprocessor)
 * ~~PNut~~ (incompatible - no preprocessor)
@@ -43,7 +44,7 @@ Supported IMUs:
 ## TODO
 
 - [ ] Improve output of existing plotting routines
-- [ ] Add routines for plotting magnetometer data
+- [x] Add routines for plotting magnetometer data
 - [ ] Add ability to change settings at runtime
 - [ ] Add ability to calibrate IMU
 - [x] Add screenshots and example video footage
@@ -52,6 +53,7 @@ Supported IMUs:
 
 Add support for other IMUs and motion sensors:
 - [x] LSM9DS1
+- [x] MPU9250
 - [ ] LIS3DH
 - [ ] ADXL345
 - [ ] L3G4200D
