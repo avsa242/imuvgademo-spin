@@ -95,7 +95,7 @@ PUB AccelRay() | ax, ay, az, sx, sy, sz
 
     vga.clear()
     vga.position(0, 1)
-    vga.printf("Raw accelerometer data output (%s)", _imu_name)
+    vga.printf("Accelerometer (raw, %s)", _imu_name)
     imu.acceldata(@ax, @ay, @az)
     sx := ax / 256
     sy := ay / 256
@@ -130,7 +130,7 @@ PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, 
     vga.clear()
     vga.fgcolor(WHITE)
     vga.position(0, 1)
-    vga.printf("Raw gyroscope data output (%s)", _imu_name)
+    vga.printf("Gyroscope (raw, %s)", _imu_name)
     xdiv := HEIGHT * 4
     ydiv := HEIGHT * 4
     zdiv := HEIGHT * 4
@@ -234,9 +234,11 @@ PRI UpdateSettings()
 
     imu.accelscale(_ascl)                                   ' 2, 4, 8, 16 (g's)
     imu.accelaxisenabled(%111)                              ' 0 or 1 for each bit (%xyz)
+    imu.accellowpassfilter(188)                             ' 5, 10, 20, 42, 98, 188
 
     imu.gyroscale(_gscl)                                    ' 250, 500, 1000, 2000
     imu.gyroaxisenabled(%111)                               ' 0 or 1 for each bit (%xyz)
+    imu.gyrolowpassfilter(5)                                ' 5, 10, 20, 42, 98, 188
 
     imu.magscale(_mscl)
 
@@ -296,7 +298,7 @@ PUB Setup()
         repeat
 
     _ascl := 2
-    _gscl := 2000
+    _gscl := 250
 #ifdef LSM9DS1_SPI
     _mscl := 4
 #elseifdef MPU9250_I2C
