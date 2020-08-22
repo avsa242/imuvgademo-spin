@@ -10,9 +10,9 @@
     --------------------------------------------
 }
 ' Uncomment one of the following to choose which IMU the demo runs with
-#define MPU9250_I2C
+'#define MPU9250_I2C
 '#define MPU9250_SPI    NOT IMPLEMENTED YET
-'#define LSM9DS1_SPI
+#define LSM9DS1_SPI
 
 CON
 
@@ -234,11 +234,14 @@ PRI UpdateSettings()
 
     imu.accelscale(_ascl)                                   ' 2, 4, 8, 16 (g's)
     imu.accelaxisenabled(%111)                              ' 0 or 1 for each bit (%xyz)
+#ifdef MPU9250_I2C
     imu.accellowpassfilter(188)                             ' 5, 10, 20, 42, 98, 188
-
+#endif
     imu.gyroscale(_gscl)                                    ' 250, 500, 1000, 2000
     imu.gyroaxisenabled(%111)                               ' 0 or 1 for each bit (%xyz)
+#ifdef MPU9250_I2C
     imu.gyrolowpassfilter(5)                                ' 5, 10, 20, 42, 98, 188
+#endif
 
     imu.magscale(_mscl)
 
@@ -277,7 +280,7 @@ PUB Setup()
         flashled(LED, 500)
 #elseifdef LSM9DS1_SPI
     _imu_name := string("LSM9DS1")
-    if imu.Start (SCL_PIN, SDIO_PIN, CS_AG_PIN, CS_M_PIN, INT_AG_PIN, INT_M_PIN, SCK_FREQ)
+    if imu.Start (SCL_PIN, SDIO_PIN, CS_AG_PIN, CS_M_PIN, SCK_FREQ)
         ser.printf("LSM9DS1 driver started (SPI)\n")
     else
         ser.printf("LSM9DS1 driver failed to start- halting\n")
