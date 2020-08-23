@@ -75,25 +75,33 @@ VAR
     byte _framebuffer[BUFFSZ]
     byte _offscreen[BUFFSZ]
 
-PUB Main()
+PUB Main() | displaysensordata
 
-    vga.SetTimings(10, 33, 16, 89, 85, 640)
+    vga.settimings(10, 33, 16, 89, 85, 640)
     setup()
-    updateSettings()
+    updatesettings()
 
+    displaysensordata := @accelray
     vga.fgcolor(WHITE)
     repeat
-        case ser.rxcheck()
+        case_fast ser.rxcheck()
             "C":
                 ser.printf("calibrating...\n")
                 calibrate()
             "c":
                 vga.clear()
+            "a":
+                displaysensordata := @accelray              ' Set up pointer to method of chosen
+                vga.clear()                                 '   display mode
+            "g":
+                displaysensordata := @gyroray               '
+                vga.clear()                                 '
+            "m":
+                displaysensordata := @magplot               '
+                vga.clear()                                 '
 
         vga.waitvsync()
-'        gyroray()
-'        accelray()
-        magplot()
+        displaysensordata()
         vga.update()
 
     flashled(LED, 100)
@@ -181,11 +189,7 @@ PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, 
 
 CON
 
-#ifdef LSM9DS1_SPI
-    MAGPLOTSCALE = 10000                                    ' XXX - arbitrary
-#elseifdef MPU9250_I2C
-    MAGPLOTSCALE = 10000                                    '
-#endif
+    MAGPLOTSCALE = 10000
 
 PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, sclz, cx, cy
 
@@ -213,11 +217,7 @@ PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, s
     vga.plot(sx+1 #> (cx + scly) <# ex-1, sy+1 #> (cy + sclz) <# ey-1, GREENMAX)          ' Y/Z
 
     vga.position(0, 2)                                      ' Raw magnetometer data
-#ifdef LSM9DS1_SPI
     vga.printf("Scale: %dGs\n", _mscl)
-#elseifdef MPU9250_I2C
-    vga.printf("Scale: %dbits\n", _mscl)    ' XXX rewrite MPU9250 MagScale() to scaled units
-#endif
 
     vga.printf("X: %s.", int.decpadded(mx/1_000000, 3))
     vga.printf("%s\n", int.deczeroed(abs(mx//1_000000)/1000, 3))
@@ -329,6 +329,10 @@ PRI UpdateSettings()
     imu.magdatarate(100)
 #endif
 
+    _ascl := imu.accelscale()                               ' Read back settings from the sensor
+    _gscl := imu.gyroscale()
+    _mscl := imu.magscale()
+
 PRI Cos(angle): tmp
 ' Return the cosine of angle
     asm
@@ -364,18 +368,18 @@ PUB Setup()
         flashled(LED, 500)
 #elseifdef LSM9DS1_SPI
     _imu_name := string("LSM9DS1")
-    if imu.Start (SCL_PIN, SDIO_PIN, CS_AG_PIN, CS_M_PIN, SCK_FREQ)
+    if imu.start (SCL_PIN, SDIO_PIN, CS_AG_PIN, CS_M_PIN, SCK_FREQ)
         ser.printf("LSM9DS1 driver started (SPI)\n")
     else
         ser.printf("LSM9DS1 driver failed to start- halting\n")
-        FlashLED(LED, 500)
+        flashled(LED, 500)
 #endif
 
     setuppalette()
     if vga.start(VGA_BASEPIN, @_framebuffer, @_palette, WIDTH, HEIGHT)
         ser.printf("VGA 8bpp driver started\n")
         vga.drawto(@_offscreen)
-        vga.fontaddress(fnt.BaseAddr())
+        vga.fontaddress(fnt.baseaddr())
         vga.fontsize(6, 8)
         vga.clear()
         vga.fgcolor(WHITE)
@@ -386,11 +390,7 @@ PUB Setup()
 
     _ascl := 2
     _gscl := 250
-#ifdef LSM9DS1_SPI
     _mscl := 4
-#elseifdef MPU9250_I2C
-    _mscl := 16
-#endif
 
 PRI SetupPalette() | i, r, g, b, c
 ' Set up palette
