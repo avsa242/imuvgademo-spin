@@ -5,14 +5,13 @@
     Description: Visual representation of IMU data output
     Copyright (c) 2020
     Started Jun 12, 2020
-    Updated Aug 22, 2020
+    Updated Aug 23, 2020
     See end of file for terms of use.
     --------------------------------------------
 }
 ' Uncomment one of the following to choose which IMU the demo runs with
-'#define MPU9250_I2C
-'#define MPU9250_SPI    NOT IMPLEMENTED YET
-#define LSM9DS1_SPI
+#define MPU9250_I2C
+'#define LSM9DS1_SPI
 
 CON
 
@@ -84,6 +83,13 @@ PUB Main()
 
     vga.fgcolor(WHITE)
     repeat
+        case ser.rxcheck()
+            "C":
+                ser.printf("calibrating...\n")
+                calibrate()
+            "c":
+                vga.clear()
+
         vga.waitvsync()
 '        gyroray()
 '        accelray()
@@ -176,12 +182,12 @@ PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, 
 CON
 
 #ifdef LSM9DS1_SPI
-    MAGPLOTSCALE = 100                                      ' XXX - arbitrary
+    MAGPLOTSCALE = 10000                                      ' XXX - arbitrary
 #elseifdef MPU9250_I2C
-    MAGPLOTSCALE = 5                                        '
+    MAGPLOTSCALE = 10000                                        '
 #endif
 
-PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep
+PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, sclz
 
     sx := CENTERX-80                                        ' Coords for graph "window"
     ex := CENTERX+80
@@ -191,27 +197,34 @@ PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep
     gradstep := 160/grads
     vga.fgcolor(WHITE)
     vga.position(0, 1)
-    vga.printf("Magnetometer (raw, %s)", _imu_name)
+    vga.printf("Magnetometer (gauss, %s)", _imu_name)
 
-    imu.magdata(@mx, @my, @mz)
-
-    mx /= MAGPLOTSCALE                                      ' Scale to fit the display
-    my /= MAGPLOTSCALE
-    mz /= MAGPLOTSCALE
+    imu.maggauss(@mx, @my, @mz)
+    sclx := mx/MAGPLOTSCALE
+    scly := my/MAGPLOTSCALE
+    sclz := mz/MAGPLOTSCALE
 
     repeat x from sx to ex step gradstep                    ' Draw dotted graduations centered on screen
         repeat y from sy to ey step 2
-            vga.plot(x, y, GREY25-5)
+            case x
+                CENTERX:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
 
     repeat y from sy to ey step gradstep
         repeat x from sx to ex step 2
-            vga.plot(x, y, GREY25-5)
+            case y
+                CENTERY:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
 
     vga.box(sx, sy, ex, ey, GREY25)                         '   then a box surrounding it
 
-    vga.plot(sx #> (CENTERX + mx) <# ex, sy #> (CENTERY + my) <# ey, BLUEMAX)           ' X/Y
-    vga.plot(sx #> (CENTERX + mx) <# ex, sy #> (CENTERY + mz) <# ey, REDMAX)            ' X/Z
-    vga.plot(sx #> (CENTERX + my) <# ex, sy #> (CENTERY + mz) <# ey, GREENMAX)          ' Y/Z
+    vga.plot(sx+1 #> (CENTERX + sclx) <# ex-1, sy+1 #> (CENTERY + scly) <# ey-1, BLUEMAX)           ' X/Y
+    vga.plot(sx+1 #> (CENTERX + sclx) <# ex-1, sy+1 #> (CENTERY + sclz) <# ey-1, REDMAX)            ' X/Z
+    vga.plot(sx+1 #> (CENTERX + scly) <# ex-1, sy+1 #> (CENTERY + sclz) <# ey-1, GREENMAX)          ' Y/Z
 
     vga.position(0, 2)                                      ' Raw magnetometer data
 #ifdef LSM9DS1_SPI
@@ -219,10 +232,21 @@ PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep
 #elseifdef MPU9250_I2C
     vga.printf("Scale: %dbits\n", _mscl)    ' XXX rewrite MPU9250 MagScale() to scaled units
 #endif
-    vga.printf("X: %s\n", int.decpadded(mx, 4))
-    vga.printf("Y: %s\n", int.decpadded(my, 4))
-    vga.printf("Z: %s\n", int.decpadded(mz, 4))
 
+    vga.printf("X: %s.", int.decpadded(mx/1_000000, 3))
+    vga.printf("%s\n", int.deczeroed(abs(mx//1_000000)/1000, 3))
+
+    vga.printf("Y: %s.", int.decpadded(my/1_000000, 3))
+    vga.printf("%s\n", int.deczeroed(abs(my//1_000000)/1000, 3))
+
+    vga.printf("Z: %s.", int.decpadded(mz/1_000000, 3))
+    vga.printf("%s\n", int.deczeroed(abs(mz//1_000000)/1000, 3))
+
+{   ' XXX non-functional - bug in string.integer or FastSpin (both strings emitted are the same):
+    vga.printf("X: %s %s\n", int.decpadded(mx/1_000000, 2), int.deczeroed(abs(mx//1_000000)/1000, 5))
+    vga.printf("Y: %s %s\n", int.decpadded(my/1_000000, 2), int.deczeroed(abs(my//1_000000)/1000, 5))
+    vga.printf("Z: %s %s\n", int.decpadded(mz/1_000000, 2), int.deczeroed(abs(mz//1_000000)/1000, 5))
+}
     vga.bgcolor(BLUEMAX)                                    ' Color legend
     vga.printf("X/Y\n")
 
@@ -236,10 +260,19 @@ PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep
     vga.bgcolor(BLACK)
     vga.fgcolor(WHITE)
 
-PRI Calibrate()
+PRI Calibrate() | x, y, z
 
     imu.calibratexlg()
     imu.calibratemag()
+
+    imu.accelbias(@x, @y, @z)
+    ser.printf("accel bias: %d, %d, %d\n", x, y, z)
+
+    imu.gyrobias(@x, @y, @z)
+    ser.printf("gyro bias: %d, %d, %d\n", x, y, z)
+
+    imu.magbias(@x, @y, @z)
+    ser.printf("mag bias: %d, %d, %d\n", x, y, z)
 
 PRI UpdateSettings()
 
@@ -320,7 +353,6 @@ PUB Setup()
 #elseifdef MPU9250_I2C
     _mscl := 16
 #endif
-    calibrate()
 
 PRI SetupPalette() | i, r, g, b, c
 ' Set up palette
