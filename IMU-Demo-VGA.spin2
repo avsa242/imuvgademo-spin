@@ -182,17 +182,19 @@ PUB GyroRay() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, 
 CON
 
 #ifdef LSM9DS1_SPI
-    MAGPLOTSCALE = 10000                                      ' XXX - arbitrary
+    MAGPLOTSCALE = 10000                                    ' XXX - arbitrary
 #elseifdef MPU9250_I2C
-    MAGPLOTSCALE = 10000                                        '
+    MAGPLOTSCALE = 10000                                    '
 #endif
 
-PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, sclz
+PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, sclz, cx, cy
 
-    sx := CENTERX-80                                        ' Coords for graph "window"
-    ex := CENTERX+80
-    sy := CENTERY-80
-    ey := CENTERY+80
+    cx := 239
+    cy := CENTERY
+    sx := cx-80                                             ' Coords for graph "window"
+    ex := cx+80
+    sy := cy-80
+    ey := cy+80
     grads := 8
     gradstep := 160/grads
     vga.fgcolor(WHITE)
@@ -204,27 +206,11 @@ PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, s
     scly := my/MAGPLOTSCALE
     sclz := mz/MAGPLOTSCALE
 
-    repeat x from sx to ex step gradstep                    ' Draw dotted graduations centered on screen
-        repeat y from sy to ey step 2
-            case x
-                CENTERX:
-                    vga.plot(x, y, GREY50)
-                other:
-                    vga.plot(x, y, GREY25-5)
+    drawcgraph(cx, cy, 160, 160, 8, 8)
 
-    repeat y from sy to ey step gradstep
-        repeat x from sx to ex step 2
-            case y
-                CENTERY:
-                    vga.plot(x, y, GREY50)
-                other:
-                    vga.plot(x, y, GREY25-5)
-
-    vga.box(sx, sy, ex, ey, GREY25)                         '   then a box surrounding it
-
-    vga.plot(sx+1 #> (CENTERX + sclx) <# ex-1, sy+1 #> (CENTERY + scly) <# ey-1, BLUEMAX)           ' X/Y
-    vga.plot(sx+1 #> (CENTERX + sclx) <# ex-1, sy+1 #> (CENTERY + sclz) <# ey-1, REDMAX)            ' X/Z
-    vga.plot(sx+1 #> (CENTERX + scly) <# ex-1, sy+1 #> (CENTERY + sclz) <# ey-1, GREENMAX)          ' Y/Z
+    vga.plot(sx+1 #> (cx + sclx) <# ex-1, sy+1 #> (cy + scly) <# ey-1, BLUEMAX)           ' X/Y
+    vga.plot(sx+1 #> (cx + sclx) <# ex-1, sy+1 #> (cy + sclz) <# ey-1, REDMAX)            ' X/Z
+    vga.plot(sx+1 #> (cx + scly) <# ex-1, sy+1 #> (cy + sclz) <# ey-1, GREENMAX)          ' Y/Z
 
     vga.position(0, 2)                                      ' Raw magnetometer data
 #ifdef LSM9DS1_SPI
@@ -259,6 +245,58 @@ PUB MagPlot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, s
 
     vga.bgcolor(BLACK)
     vga.fgcolor(WHITE)
+
+PRI DrawGraph(sx, sy, ex, ey, hdivs, vdivs) | hgstep, vgstep, x, y, w, h, cx, cy
+' Upper-left-anchored graph
+    w := ex-sx
+    h := ey-sy
+    cx := sx+sx
+    cy := sy+sy
+    hgstep := w/hdivs
+    vgstep := h/vdivs
+
+    repeat x from sx to ex step hgstep                    ' Draw dotted graduations centered on screen
+        repeat y from sy to ey step 2
+            case x
+                cx:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
+
+    repeat y from sy to ey step vgstep
+        repeat x from sx to ex step 2
+            case y
+                cy:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
+
+PRI DrawCGraph(cx, cy, w, h, hdivs, vdivs) | hgstep, vgstep, x, y, sx, sy, ex, ey
+' Center-anchored graph
+    sx := cx-(w/2)
+    sy := cy-(h/2)
+    ex := cx+(w/2)
+    ey := cy+(h/2)
+
+    hgstep := w/hdivs
+    vgstep := h/vdivs
+
+    repeat x from sx to ex step hgstep                    ' Draw dotted graduations centered on screen
+        repeat y from sy to ey step 2
+            case x
+                cx:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
+
+    repeat y from sy to ey step vgstep
+        repeat x from sx to ex step 2
+            case y
+                cy:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
+
 
 PRI Calibrate() | x, y, z
 
