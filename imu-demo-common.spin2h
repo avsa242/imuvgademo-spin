@@ -1,0 +1,346 @@
+{
+    --------------------------------------------
+    Filename: IMU-Demo-VGA.spin2
+    Author: Jesse Burt
+    Description: Visual representation of IMU data output
+    Copyright (c) 2021
+    Started Jun 12, 2020
+    Updated Jan 23, 2021
+    See end of file for terms of use.
+    --------------------------------------------
+}
+' XXX sign isn't displayed when scaling down and displaying sensor values - string.integer sees a 0 and doesn't attach a sign to the string
+
+CON
+
+    WIDTH   = 320
+    HEIGHT  = 240
+    XMAX    = WIDTH-1
+    YMAX    = HEIGHT-1
+    CENTERX = WIDTH/2
+    CENTERY = HEIGHT/2
+    BUFFSZ  = WIDTH * HEIGHT
+    BPP     = 1
+    BPL     = WIDTH * BPP
+
+' --
+
+OBJ
+
+    ser : "com.serial.terminal.ansi"
+    vga : "display.vga.bitmap-8bpp"
+    fnt : "font.5x8"
+    math: "math.int"
+
+VAR
+
+    long _gdiv
+    long _imu_name[3]
+    long _gscl1k_sine
+    word _ascl, _gscl, _mscl
+    byte _framebuffer[BUFFSZ]
+    byte _offscreen[BUFFSZ]
+
+PUB demo() | disp_data
+
+    update_settings()
+
+    disp_data := @accel_ray
+    vga.fgcolor(WHITE)
+    repeat
+        case_fast ser.rxcheck()
+            "C":
+                ser.printf("calibrating...\n\r")
+                calibrate()
+            "c":
+                vga.clear()
+            "a":
+                vga.charattrs(0)
+                disp_data := @accel_ray         ' point to chosen display mode
+                vga.clear()                     '
+            "g":
+                vga.charattrs(0)
+                disp_data := @gyro_ray          '
+                vga.clear()                     '
+            "m":
+                vga.charattrs(vga.DRAWBG)
+                disp_data := @mag_plot          '
+                vga.clear()                     '
+
+        disp_data()
+        vga.update()
+
+PUB accel_ray() | ax, ay, az, sx, sy, sz
+
+    vga.clear()
+    vga.position(0, 1)
+    vga.printf("Accelerometer (raw, %s)", _imu_name)
+    imu.accelg(@ax, @ay, @az)
+    sx := ax / 8192
+    sy := ay / 8192
+    sz := az / 8192
+
+    vga.position(0, 2)
+    vga.printf("Scale: %dg\n\r", _ascl)
+    vga.fgcolor(REDMAX)
+    vga.printf("X: %3.3d.%03.3d\n\r", (ax/1_000000), abs(ax//1_000000)/1000)
+    vga.fgcolor(WHITE)
+
+    vga.fgcolor(GREENMAX)
+    vga.printf("Y: %3.3d.%03.3d\n\r", (ay/1_000000), abs(ay//1_000000)/1000)
+    vga.fgcolor(WHITE)
+
+    vga.fgcolor(BLUEMAX)
+    vga.printf("Z: %3.3d.%03.3d\n\r", (az/1_000000), abs(az//1_000000)/1000)
+    vga.fgcolor(WHITE)
+
+    vga.line(CENTERX, CENTERY, CENTERX, CENTERY+sx, REDMAX)
+    vga.line(CENTERX, CENTERY, CENTERX+sy, CENTERY, GREENMAX)
+    vga.line(CENTERX, CENTERY, CENTERX+sz, CENTERY+sz, BLUEMAX)
+    vga.circle(CENTERX, CENTERY+sx, 5, REDMAX)
+    vga.circle(CENTERX+sy, CENTERY, 5, GREENMAX)
+    vga.circle(CENTERX+sz, CENTERY+sz, 5, BLUEMAX)
+
+PUB gyro_ray() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr, yr, zr
+
+    vga.clear()
+    vga.fgcolor(WHITE)
+    vga.position(0, 1)
+    vga.printf("Gyroscope (raw, %s)", _imu_name)
+    xdiv := HEIGHT * 4
+    ydiv := HEIGHT * 4
+    zdiv := HEIGHT * 4
+
+    imu.gyrodps(@gx, @gy, @gz)
+    gx /= 1000                                  ' micro-dps to milli-dps for display
+    gy /= 1000
+    gz /= 1000
+
+    { scale gyro full-scale range to sine full-cycle (gscl_1k * 2) / 4096 }
+    xsx := CENTERX + math.cos(gx/_gscl1k_sine) / xdiv
+    xsy := CENTERY + math.sin(gx/_gscl1k_sine) / xdiv/4
+    xr := xsy / 16                              ' change circle radius depending on position
+
+    ysx := CENTERX + math.cos(gy/_gscl1k_sine) / ydiv/4
+    ysy := CENTERY + math.sin(gy/_gscl1k_sine) / ydiv
+    yr := ysx / 16
+
+    zsx := CENTERX + math.cos(gz/_gscl1k_sine) / zdiv
+    zsy := CENTERY + math.sin(gz/_gscl1k_sine) / zdiv
+
+    vga.position(0, 2)
+    vga.printf("Scale: %ddps\n\r", _gscl)
+    vga.fgcolor(REDMAX)
+    vga.printf("X: %3.3d.%03.3d\n\r", gx/1000, abs(gx//1000))
+
+    vga.fgcolor(GREENMAX)
+    vga.printf("Y: %3.3d.%03.3d\n\r", gy/1000, abs(gy//1000))
+
+    vga.fgcolor(BLUEMAX)
+    vga.printf("Z: %3.3d.%03.3d", gz/1000, abs(gz//1000))
+
+    { draw lines from screen center outward to elliptical path for each axis }
+    vga.line(CENTERX, CENTERY, xsx, xsy, REDMAX)
+    vga.line(CENTERX, CENTERY, ysx, ysy, GREENMAX)
+    vga.line(CENTERX, CENTERY, zsx, zsy, BLUEMAX)
+    vga.circle(xsx, xsy, xr, REDMAX)
+    vga.circle(ysx, ysy, yr, GREENMAX)
+    vga.circle(zsx, zsy, 5, BLUEMAX)
+
+CON
+
+    MAGPLOTSCALE = 10000
+
+PUB mag_plot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, sclz, cx, cy
+
+    cx := 239
+    cy := CENTERY
+    sx := cx-80                                             ' Coords for graph "window"
+    ex := cx+80
+    sy := cy-80
+    ey := cy+80
+    grads := 8
+    gradstep := 160/grads
+    vga.fgcolor(WHITE)
+    vga.position(0, 1)
+    vga.printf("Magnetometer (gauss, %s)", _imu_name)
+
+    imu.maggauss(@mx, @my, @mz)
+    sclx := mx/MAGPLOTSCALE
+    scly := my/MAGPLOTSCALE
+    sclz := mz/MAGPLOTSCALE
+
+    draw_cgraph(cx, cy, 160, 160, 8, 8)
+
+    vga.plot(sx+1 #> (cx + sclx) <# ex-1, sy+1 #> (cy + scly) <# ey-1, BLUEMAX)           ' X/Y
+    vga.plot(sx+1 #> (cx + sclx) <# ex-1, sy+1 #> (cy + sclz) <# ey-1, REDMAX)            ' X/Z
+    vga.plot(sx+1 #> (cx + scly) <# ex-1, sy+1 #> (cy + sclz) <# ey-1, GREENMAX)          ' Y/Z
+
+    vga.charattrs(vga.DRAWBG)
+    vga.position(0, 2)                                      ' Raw magnetometer data
+    vga.printf("Scale: %dGs\n\r", _mscl)
+
+    vga.printf("X: %3.3d.%03.3d\n\r\r", (mx/1_000000), abs(mx//1_000000)/1000)
+    vga.printf("Y: %3.3d.%03.3d\n\r\r", (my/1_000000), abs(my//1_000000)/1000)
+    vga.printf("Z: %3.3d.%03.3d\n\r\r", (mz/1_000000), abs(mz//1_000000)/1000)
+
+    vga.bgcolor(BLUEMAX)                                    ' Color legend
+    vga.printf("X/Y\n\r")
+
+    vga.bgcolor(REDMAX)
+    vga.printf("X/Z\n\r")
+
+    vga.bgcolor(GREENMAX)
+    vga.fgcolor(BLACK)
+    vga.printf("Y/Z")
+
+    vga.bgcolor(BLACK)
+    vga.fgcolor(WHITE)
+
+PRI draw_graph(sx, sy, ex, ey, hdivs, vdivs) | hgstep, vgstep, x, y, w, h, cx, cy
+' Upper-left-anchored graph
+    w := ex-sx
+    h := ey-sy
+    cx := sx+sx
+    cy := sy+sy
+    hgstep := w/hdivs
+    vgstep := h/vdivs
+
+    repeat x from sx to ex step hgstep                    ' Draw dotted graduations centered on screen
+        repeat y from sy to ey step 2
+            case x
+                cx:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
+
+    repeat y from sy to ey step vgstep
+        repeat x from sx to ex step 2
+            case y
+                cy:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
+
+PRI draw_cgraph(cx, cy, w, h, hdivs, vdivs) | hgstep, vgstep, x, y, sx, sy, ex, ey
+' Center-anchored graph
+    sx := cx-(w/2)
+    sy := cy-(h/2)
+    ex := cx+(w/2)
+    ey := cy+(h/2)
+
+    hgstep := w/hdivs
+    vgstep := h/vdivs
+
+    repeat x from sx to ex step hgstep                    ' Draw dotted graduations centered on screen
+        repeat y from sy to ey step 2
+            case x
+                cx:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
+
+    repeat y from sy to ey step vgstep
+        repeat x from sx to ex step 2
+            case y
+                cy:
+                    vga.plot(x, y, GREY50)
+                other:
+                    vga.plot(x, y, GREY25-5)
+
+
+PRI calibrate() | x, y, z
+
+    ser.strln(@"accel")
+    imu.calibrateaccel()
+
+    ser.strln(@"gyro")
+    imu.calibrategyro()
+
+    ser.strln(@"mag")
+    imu.calibratemag()
+    ser.strln(@"done")
+
+    longfill(@x, 0, 3)
+    imu.accelbias(@x, @y, @z)
+    ser.printf("accel bias: %d, %d, %d\n\r", x, y, z)
+
+    longfill(@x, 0, 3)
+    imu.gyrobias(@x, @y, @z)
+    ser.printf("gyro bias: %d, %d, %d\n\r", x, y, z)
+
+    longfill(@x, 0, 3)
+    imu.magbias(@x, @y, @z)
+    ser.printf("mag bias: %d, %d, %d\n\r", x, y, z)
+
+PUB setup()
+
+    ser.start(SER_BAUD)
+    waitms(30)
+    ser.clear()
+    ser.strln(@"Serial terminal started")
+
+    setuppalette()
+    vga.start(VGA_BASEPIN, WIDTH, HEIGHT, @_framebuffer)
+    ser.strln(@"VGA 8bpp driver started")
+    vga.drawto(@_offscreen)
+    vga.fontscale(1)
+    vga.fontaddress(fnt.baseaddr())
+    vga.fontsize(6, 8)
+'    vga.fontspacing(1, 0)
+    vga.clear()
+    vga.fgcolor(WHITE)
+    vga.position(0, 0)
+
+    _ascl := imu.CAL_XL_SCL
+    _gscl := imu.CAL_G_SCL
+    _gscl1k_sine := ((_gscl * 1000) * 2) / 4096 ' scale gyro full-scale range to sine full-cycle
+    _mscl := imu.CAL_M_SCL
+
+PRI SetupPalette() | i, r, g, b, c, pal_ptr
+' Set up palette
+    r := 0
+    g := 0
+    b := 0
+    pal_ptr := vga.paletteptr()
+    repeat i from 0 to 255
+        c := 0 | (r << 16) | (g << 8) | b
+        long[pal_ptr][i] := c
+
+        case i
+            0..63:                                          ' Red
+                r += 4
+                g := 0
+                b := 0
+            64..127:                                        ' Green
+                r := 0
+                g += 4
+                b := 0
+            128..191:                                       ' Blue
+                r := 0
+                g := 0
+                b += 4
+            192..255:                                       ' Grey
+                r += 4
+                g += 4
+                b += 4
+
+CON
+
+' Named constants for colors
+    BLACK       = 0
+    REDMIN      = 0
+    REDMAX      = 63
+    GREENMIN    = 64
+    GREENMAX    = 127
+    BLUEMIN     = 128
+    BLUEMAX     = 191
+    GREY0       = 192
+    GREY25      = 192+16
+    GREY50      = 192+32
+    GREY75      = 192+48
+    WHITE       = 255
+
+DAT
+{
+}

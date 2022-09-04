@@ -1,0 +1,81 @@
+{                                                                                                           --------------------------------------------
+    Filename: LSM9DS1-IMUDemo.spin2
+    Author: Jesse Burt
+    Description: Visual representation of IMU data output
+        * LSM9DS1
+    Copyright (c) 2022
+    Started Sep 3, 2020
+    Updated Sep 3, 2022
+    See end of file for terms of use.
+    --------------------------------------------
+}
+CON
+
+    _clkfreq    = cfg#_clkfreq_def
+    _xtlfreq    = cfg#_xtlfreq
+
+' -- User-modifiable constants
+    SER_BAUD    = 2_000_000
+
+    VGA_BASEPIN = 48
+
+    { SPI configuration }
+    CS_AG_PIN   = 0
+    CS_M_PIN    = 1
+    SCK_PIN     = 2                             ' SCL
+    MOSI_PIN    = 3                             ' SDA / SDIO
+    MISO_PIN    = 4                             ' SDO / SDIO
+    SCK_FREQ    = 5_000_000
+    ' NOTE: Set MOSI_PIN and MISO_PIN to the same pin to use 3-wire SPI
+
+    { I2C configuration }
+    SCL_PIN     = 0
+    SDA_PIN     = 1
+    I2C_FREQ    = 400_000
+    ADDR_BITS   = 0
+' --
+
+OBJ
+
+    cfg     : "core.con.boardcfg.p2eval"
+    imu     : "sensor.imu.9dof.lsm9ds1"
+
+PUB main()
+
+    vga.settimings(10, 33, 16, 96, 48, 640)
+    setup()
+
+    _imu_name := string("LSM9DS1")
+#ifdef LSM9DS1_SPI
+    if imu.startx(SCL_PIN, SDIO_PIN, CS_AG_PIN, CS_M_PIN, SCK_FREQ)
+#else
+    if imu.startx(SCL_PIN, SDA_PIN, I2C_FREQ, ADDR_BITS)
+#endif
+        ser.strln(@"LSM9DS1 driver started")
+    else
+        ser.strln(@"LSM9DS1 driver failed to start- halting")
+        repeat
+
+    imu.preset_active()
+
+    demo()
+
+PRI update_settings()
+
+    imu.accelscale(_ascl)                                   ' 2, 4, 8, 16 (g's)
+    imu.accelaxisenabled(%111)                              ' 0 or 1 for each bit (%xyz)
+'    imu.accellowpassfilter(188)                             ' 5, 10, 20, 42, 98, 188
+
+    imu.gyroscale(_gscl)                                    ' 250, 500, 1000, 2000
+    imu.gyroaxisenabled(%111)                               ' 0 or 1 for each bit (%xyz)
+'    imu.gyrolowpassfilter(5)                                ' 5, 10, 20, 42, 98, 188
+
+    imu.magscale(_mscl)
+    imu.magdatarate(80_000)
+
+    _ascl := imu.accelscale()                               ' Read back settings from the sensor
+    _gscl := imu.gyroscale()
+    _mscl := imu.magscale()
+
+#include "imu-demo-common.spin2h"
+
