@@ -1,35 +1,25 @@
 {
-    --------------------------------------------
-    Filename: imu-demo-common.spin2h
-    Author: Jesse Burt
-    Description: IMU data visualization, common code (QVGA, 8bpp)
-    Copyright (c) 2022
-    Started Sep 3, 2022
-    Updated Sep 4, 2022
-    See end of file for terms of use.
-    --------------------------------------------
+----------------------------------------------------------------------------------------------------
+    Filename:       imu-demo-common.spin2h
+    Description:    IMU data visualization, common code (QVGA, 8bpp)
+    Author:         Jesse Burt
+    Started:        Sep 3, 2022
+    Updated:        Oct 22, 2024
+    Copyright (c) 2024 - See end of file for terms of use.
+----------------------------------------------------------------------------------------------------
 }
 
 CON
 
-    WIDTH   = 320
-    HEIGHT  = 240
-    XMAX    = WIDTH-1
-    YMAX    = HEIGHT-1
-    CENTERX = WIDTH/2
-    CENTERY = HEIGHT/2
-    BUFFSZ  = WIDTH * HEIGHT
-    BPP     = 1
-    BPL     = WIDTH * BPP
+    CENTERX = vga.WIDTH/2
+    CENTERY = vga.HEIGHT/2
 
-' --
 
 OBJ
 
-    ser : "com.serial.terminal.ansi"
-    vga : "display.vga.bitmap-8bpp"
-    fnt : "font.5x8"
-    math: "math.int"
+    fnt:    "font.5x8"
+    math:   "math.int"
+
 
 VAR
 
@@ -37,8 +27,8 @@ VAR
     long _imu_name[3]
     long _gscl1k_sine
     word _ascl, _gscl, _mscl
-    byte _framebuffer[BUFFSZ]
-    byte _offscreen[BUFFSZ]
+    byte _offscreen[vga.WIDTH*vga.HEIGHT]
+
 
 PUB demo() | disp_data
 
@@ -47,50 +37,50 @@ PUB demo() | disp_data
     disp_data := @accel_ray
     vga.fgcolor(WHITE)
     repeat
-        case_fast ser.rxcheck()
+        case_fast ser.getchar_noblock()
             "C":
-                ser.printf("calibrating...\n\r")
+                ser.strln(@"calibrating...")
                 calibrate()
             "c":
                 vga.clear()
             "a":
-                vga.charattrs(0)
+                vga.char_attrs(0)
                 disp_data := @accel_ray         ' point to chosen display mode
                 vga.clear()                     '
             "g":
-                vga.charattrs(0)
+                vga.char_attrs(0)
                 disp_data := @gyro_ray          '
                 vga.clear()                     '
             "m":
-                vga.charattrs(vga.DRAWBG)
+                vga.char_attrs(vga.DRAWBG)
                 disp_data := @mag_plot          '
                 vga.clear()                     '
 
         disp_data()
-        vga.update()
+        vga.show()
 
 PUB accel_ray() | ax, ay, az, sx, sy, sz
 
     vga.clear()
-    vga.position(0, 1)
-    vga.printf("Accelerometer (raw, %s)", _imu_name)
-    imu.accelg(@ax, @ay, @az)
+    vga.pos_xy(0, 1)
+    vga.printf(@"Accelerometer (raw, %s)", _imu_name)
+    imu.accel_g(@ax, @ay, @az)
     sx := ax / 8192
     sy := ay / 8192
     sz := az / 8192
 
-    vga.position(0, 2)
-    vga.printf("Scale: %dg\n\r", _ascl)
+    vga.pos_xy(0, 2)
+    vga.printf(@"Scale: %dg\n\r", _ascl)
     vga.fgcolor(REDMAX)
-    vga.printf("X: %3.3d.%03.3d\n\r", (ax/1_000000), abs(ax//1_000000)/1000)
+    vga.printf(@"X: %3.3d.%03.3d\n\r", (ax/1_000000), abs(ax//1_000000)/1000)
     vga.fgcolor(WHITE)
 
     vga.fgcolor(GREENMAX)
-    vga.printf("Y: %3.3d.%03.3d\n\r", (ay/1_000000), abs(ay//1_000000)/1000)
+    vga.printf(@"Y: %3.3d.%03.3d\n\r", (ay/1_000000), abs(ay//1_000000)/1000)
     vga.fgcolor(WHITE)
 
     vga.fgcolor(BLUEMAX)
-    vga.printf("Z: %3.3d.%03.3d\n\r", (az/1_000000), abs(az//1_000000)/1000)
+    vga.printf(@"Z: %3.3d.%03.3d\n\r", (az/1_000000), abs(az//1_000000)/1000)
     vga.fgcolor(WHITE)
 
     vga.line(CENTERX, CENTERY, CENTERX, CENTERY+sx, REDMAX)
@@ -104,13 +94,13 @@ PUB gyro_ray() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr,
 
     vga.clear()
     vga.fgcolor(WHITE)
-    vga.position(0, 1)
-    vga.printf("Gyroscope (raw, %s)", _imu_name)
-    xdiv := HEIGHT * 4
-    ydiv := HEIGHT * 4
-    zdiv := HEIGHT * 4
+    vga.pos_xy(0, 1)
+    vga.printf(@"Gyroscope (raw, %s)", _imu_name)
+    xdiv := vga.HEIGHT * 4
+    ydiv := vga.HEIGHT * 4
+    zdiv := vga.HEIGHT * 4
 
-    imu.gyrodps(@gx, @gy, @gz)
+    imu.gyro_dps(@gx, @gy, @gz)
     gx /= 1000                                  ' micro-dps to milli-dps for display
     gy /= 1000
     gz /= 1000
@@ -127,16 +117,16 @@ PUB gyro_ray() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr,
     zsx := CENTERX + math.cos(gz/_gscl1k_sine) / zdiv
     zsy := CENTERY + math.sin(gz/_gscl1k_sine) / zdiv
 
-    vga.position(0, 2)
-    vga.printf("Scale: %ddps\n\r", _gscl)
+    vga.pos_xy(0, 2)
+    vga.printf(@"Scale: %ddps\n\r", _gscl)
     vga.fgcolor(REDMAX)
-    vga.printf("X: %3.3d.%03.3d\n\r", gx/1000, abs(gx//1000))
+    vga.printf(@"X: %3.3d.%03.3d\n\r", gx/1000, abs(gx//1000))
 
     vga.fgcolor(GREENMAX)
-    vga.printf("Y: %3.3d.%03.3d\n\r", gy/1000, abs(gy//1000))
+    vga.printf(@"Y: %3.3d.%03.3d\n\r", gy/1000, abs(gy//1000))
 
     vga.fgcolor(BLUEMAX)
-    vga.printf("Z: %3.3d.%03.3d", gz/1000, abs(gz//1000))
+    vga.printf(@"Z: %3.3d.%03.3d", gz/1000, abs(gz//1000))
 
     { draw lines from screen center outward to elliptical path for each axis }
     vga.line(CENTERX, CENTERY, xsx, xsy, REDMAX)
@@ -145,6 +135,7 @@ PUB gyro_ray() | gx, gy, gz, xsx, xsy, ysx, ysy, zsx, zsy, xdiv, ydiv, zdiv, xr,
     vga.circle(xsx, xsy, xr, REDMAX)
     vga.circle(ysx, ysy, yr, GREENMAX)
     vga.circle(zsx, zsy, 5, BLUEMAX)
+
 
 CON
 
@@ -161,10 +152,10 @@ PUB mag_plot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, 
     grads := 8
     gradstep := 160/grads
     vga.fgcolor(WHITE)
-    vga.position(0, 1)
-    vga.printf("Magnetometer (gauss, %s)", _imu_name)
+    vga.pos_xy(0, 1)
+    vga.printf(@"Magnetometer (gauss, %s)", _imu_name)
 
-    imu.maggauss(@mx, @my, @mz)
+    imu.mag_gauss(@mx, @my, @mz)
     sclx := mx/MAGPLOTSCALE
     scly := my/MAGPLOTSCALE
     sclz := mz/MAGPLOTSCALE
@@ -175,23 +166,23 @@ PUB mag_plot() | mx, my, mz, sx, ex, sy, ey, x, y, grads, gradstep, sclx, scly, 
     vga.plot(sx+1 #> (cx + sclx) <# ex-1, sy+1 #> (cy + sclz) <# ey-1, REDMAX)            ' X/Z
     vga.plot(sx+1 #> (cx + scly) <# ex-1, sy+1 #> (cy + sclz) <# ey-1, GREENMAX)          ' Y/Z
 
-    vga.charattrs(vga.DRAWBG)
-    vga.position(0, 2)                                      ' Raw magnetometer data
-    vga.printf("Scale: %dGs\n\r", _mscl)
+    vga.char_attrs(vga.DRAWBG)
+    vga.pos_xy(0, 2)                                      ' Raw magnetometer data
+    vga.printf(@"Scale: %dGs\n\r", _mscl)
 
-    vga.printf("X: %3.3d.%03.3d\n\r\r", (mx/1_000000), abs(mx//1_000000)/1000)
-    vga.printf("Y: %3.3d.%03.3d\n\r\r", (my/1_000000), abs(my//1_000000)/1000)
-    vga.printf("Z: %3.3d.%03.3d\n\r\r", (mz/1_000000), abs(mz//1_000000)/1000)
+    vga.printf(@"X: %3.3d.%03.3d\n\r\r", (mx/1_000000), abs(mx//1_000000)/1000)
+    vga.printf(@"Y: %3.3d.%03.3d\n\r\r", (my/1_000000), abs(my//1_000000)/1000)
+    vga.printf(@"Z: %3.3d.%03.3d\n\r\r", (mz/1_000000), abs(mz//1_000000)/1000)
 
     vga.bgcolor(BLUEMAX)                                    ' Color legend
-    vga.printf("X/Y\n\r")
+    vga.strln(@"X/Y")
 
     vga.bgcolor(REDMAX)
-    vga.printf("X/Z\n\r")
+    vga.strln(@"X/Z")
 
     vga.bgcolor(GREENMAX)
     vga.fgcolor(BLACK)
-    vga.printf("Y/Z")
+    vga.strln(@"Y/Z")
 
     vga.bgcolor(BLACK)
     vga.fgcolor(WHITE)
@@ -251,78 +242,47 @@ PRI draw_cgraph(cx, cy, w, h, hdivs, vdivs) | hgstep, vgstep, x, y, sx, sy, ex, 
 PRI calibrate() | x, y, z
 
     ser.strln(@"accel")
-    imu.calibrateaccel()
+    imu.calibrate_accel()
 
     ser.strln(@"gyro")
-    imu.calibrategyro()
+    imu.calibrate_gyro()
 
     ser.strln(@"mag")
-    imu.calibratemag()
+    imu.calibrate_mag()
     ser.strln(@"done")
 
     longfill(@x, 0, 3)
-    imu.accelbias(@x, @y, @z)
-    ser.printf("accel bias: %d, %d, %d\n\r", x, y, z)
+    imu.accel_bias(@x, @y, @z)
+    ser.printf(@"accel bias: %d, %d, %d\n\r", x, y, z)
 
     longfill(@x, 0, 3)
-    imu.gyrobias(@x, @y, @z)
-    ser.printf("gyro bias: %d, %d, %d\n\r", x, y, z)
+    imu.gyro_bias(@x, @y, @z)
+    ser.printf(@"gyro bias: %d, %d, %d\n\r", x, y, z)
 
     longfill(@x, 0, 3)
-    imu.magbias(@x, @y, @z)
-    ser.printf("mag bias: %d, %d, %d\n\r", x, y, z)
+    imu.mag_bias(@x, @y, @z)
+    ser.printf(@"mag bias: %d, %d, %d\n\r", x, y, z)
 
 PUB setup()
 
-    ser.start(SER_BAUD)
+    ser.start()
     waitms(30)
     ser.clear()
     ser.strln(@"Serial terminal started")
 
-    setuppalette()
-    vga.start(VGA_BASEPIN, WIDTH, HEIGHT, @_framebuffer)
+    vga.start()
+    vga.draw_to(@_offscreen)
     ser.strln(@"VGA 8bpp driver started")
-    vga.drawto(@_offscreen)
-    vga.fontscale(1)
-    vga.fontaddress(fnt.baseaddr())
-    vga.fontsize(6, 8)
-'    vga.fontspacing(1, 0)
+    vga.set_font(1,1)
     vga.clear()
     vga.fgcolor(WHITE)
-    vga.position(0, 0)
+    vga.pos_xy(0, 0)
 
     _ascl := imu.CAL_XL_SCL
     _gscl := imu.CAL_G_SCL
     _gscl1k_sine := ((_gscl * 1000) * 2) / 4096 ' scale gyro full-scale range to sine full-cycle
     _mscl := imu.CAL_M_SCL
 
-PRI SetupPalette() | i, r, g, b, c, pal_ptr
-' Set up palette
-    r := 0
-    g := 0
-    b := 0
-    pal_ptr := vga.paletteptr()
-    repeat i from 0 to 255
-        c := 0 | (r << 16) | (g << 8) | b
-        long[pal_ptr][i] := c
-
-        case i
-            0..63:                                          ' Red
-                r += 4
-                g := 0
-                b := 0
-            64..127:                                        ' Green
-                r := 0
-                g += 4
-                b := 0
-            128..191:                                       ' Blue
-                r := 0
-                g := 0
-                b += 4
-            192..255:                                       ' Grey
-                r += 4
-                g += 4
-                b += 4
 
 CON
 
